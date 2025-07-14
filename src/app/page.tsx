@@ -1,103 +1,230 @@
-import Image from "next/image";
+"use client";
+import { ActionIcon, Button, Card, Container, Divider, FileButton, Group, Notification, ScrollArea, Select, Stack, Table, Text, Title } from "@mantine/core";
+import { IconAlertCircle, IconDownload, IconFileText, IconRefresh, IconTable, IconUpload } from "@tabler/icons-react";
+import { useMemo, useState } from "react";
+import Footer from "../components/Footer";
+import HeaderNav from "../components/HeaderNav";
+import { getAllSupportedExtensions, parseByExtension } from "../parsers";
+
+const ACCEPT_EXTENSIONS = getAllSupportedExtensions().join(",");
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [file, setFile] = useState<File | null>(null);
+  const [words, setWords] = useState<Array<{ word: string; pinyin?: string; weight?: number }>>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [rowLimit, setRowLimit] = useState<string>("100");
+  const [sortBy, setSortBy] = useState<string>("index");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [fileInputKey, setFileInputKey] = useState(0);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+  // 排序后的数据
+  const sortedWords = useMemo(() => {
+    const arr = rowLimit === "全部" ? words : words.slice(0, Number(rowLimit));
+    if (sortBy === "index") {
+      return arr;
+    }
+    return [...arr].sort((a, b) => {
+      const va = a[sortBy as keyof typeof a];
+      const vb = b[sortBy as keyof typeof b];
+      if (typeof va === "string" && typeof vb === "string") {
+        return sortDir === "asc" ? va.localeCompare(vb) : vb.localeCompare(va);
+      }
+      if (typeof va === "number" && typeof vb === "number") {
+        return sortDir === "asc" ? va - vb : vb - va;
+      }
+      return 0;
+    });
+  }, [words, rowLimit, sortBy, sortDir]);
+
+  const handleSort = (col: string) => {
+    if (sortBy === col) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
+    } else {
+      setSortBy(col);
+      setSortDir("asc");
+    }
+  };
+
+  const handleFileChange = async (f: File | null) => {
+    if (!f) return;
+    setFile(f);
+    setWords([]);
+    setError(null);
+    setLoading(true);
+    console.log("handleFileChange", f);
+    try {
+      const result = await parseByExtension(f);
+      setWords(result);
+    } catch (e: any) {
+      setError(e.message || "解析失败");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleExport = () => {
+    if (!file || words.length === 0) return;
+    // 生成TSV内容
+    const tsv = words.map(w => [w.word, w.pinyin ?? "", w.weight ?? ""].join("\t")).join("\n");
+    // 生成文件名
+    const base = file.name.replace(/\.[^.]+$/, "");
+    const filename = base + ".tsv";
+    // 触发下载
+    const blob = new Blob([tsv], { type: "text/tab-separated-values" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 100);
+  };
+
+  const handleClear = () => {
+    setWords([]);
+    setFile(null);
+    setFileInputKey(k => k + 1); // 关键：强制重置 FileButton，允许同一文件重复打开
+  };
+
+  return (
+    <>
+      <HeaderNav />
+      <Container size="md" py="xl">
+        <Stack gap="xl">
+          {/* 上传卡片 */}
+          <Card shadow="sm" radius="lg" p="lg" withBorder>
+            <Group justify="space-between" align="center">
+              <Group>
+                <IconFileText size={28} />
+                <Title order={4}>
+                  上传文件
+                  <Text span size="xs" c="dimmed" ml={8} style={{ textDecoration: 'underline dotted', cursor: 'pointer' }}>
+                    (目前支持: {ACCEPT_EXTENSIONS})
+                  </Text>
+                </Title>
+              </Group>
+              <FileButton
+                key={fileInputKey}
+                onChange={handleFileChange}
+                accept={ACCEPT_EXTENSIONS}
+                disabled={loading}
+              >
+                {(props) => (
+                  <Button leftSection={<IconUpload size={18} />} variant="light" loading={loading} {...props}>
+                    选择文件
+                  </Button>
+                )}
+              </FileButton>
+            </Group>
+            {file && (
+              <Text mt="md" size="sm" c="dimmed">
+                已选择文件：{file.name}（{Math.round(file.size / 1024)} KB）
+              </Text>
+            )}
+            {error && (
+              <div style={{ marginTop: 16 }}>
+                <Notification color="red" icon={<IconAlertCircle size={18} />}>
+                  {error}
+                </Notification>
+              </div>
+            )}
+          </Card>
+
+          {/* 导出操作区 */}
+          <Card shadow="sm" radius="lg" p="lg" withBorder>
+            <Group justify="space-between" align="center">
+              <Group>
+                <IconDownload size={24} />
+                <Title order={4}>导出词库</Title>
+              </Group>
+              <Button leftSection={<IconDownload size={18} />} onClick={handleExport} disabled={words.length === 0}>
+                保存为TSV
+              </Button>
+            </Group>
+          </Card>
+
+          {/* 解析展示区 */}
+          <Card shadow="sm" radius="lg" p="lg" withBorder>
+            <Group justify="space-between" align="center" mb="md">
+              <Group>
+                <Group>
+                  <IconTable size={24} />
+                  <Title order={4}>词条预览</Title>
+                </Group>
+                <Text size="sm" c="dimmed" ml={8}>
+                  {words.length > 0 && `（共 ${words.length} 条）`}
+                </Text>
+              </Group>
+              <Group>
+                <Select
+                  data={["50", "100", "200", "500", "1000", "全部"]}
+                  value={rowLimit}
+                  onChange={v => setRowLimit(v || "100")}
+                  size="xs"
+                  w={100}
+                  allowDeselect={false}
+                  label="显示行数"
+                  placeholder="显示行数"
+                />
+                <ActionIcon variant="subtle" size="lg" onClick={handleClear} title="清空">
+                  <IconRefresh size={20} />
+                </ActionIcon>
+              </Group>
+            </Group>
+            <Divider mb="sm" />
+            <ScrollArea h={400} type="auto" offsetScrollbars>
+              <Table striped highlightOnHover withTableBorder stickyHeader>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>
+                      序号
+                    </Table.Th>
+                    <Table.Th onClick={() => handleSort("word")} style={{ cursor: "pointer" }}>
+                      词语{sortBy === "word" && (sortDir === "asc" ? " ▲" : " ▼")}
+                    </Table.Th>
+                    <Table.Th onClick={() => handleSort("pinyin")} style={{ cursor: "pointer" }}>
+                      拼音{sortBy === "pinyin" && (sortDir === "asc" ? " ▲" : " ▼")}
+                    </Table.Th>
+                    <Table.Th onClick={() => handleSort("weight")} style={{ cursor: "pointer" }}>
+                      权重{sortBy === "weight" && (sortDir === "asc" ? " ▲" : " ▼")}
+                    </Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {loading ? (
+                    <Table.Tr>
+                      <Table.Td colSpan={4} style={{ textAlign: "center", color: "#aaa" }}>
+                        正在解析...
+                      </Table.Td>
+                    </Table.Tr>
+                  ) : words.length === 0 ? (
+                    <Table.Tr>
+                      <Table.Td colSpan={4} style={{ textAlign: "center", color: "#aaa" }}>
+                        暂无数据，请上传词库文件
+                      </Table.Td>
+                    </Table.Tr>
+                  ) : (
+                    sortedWords.map((w, i) => (
+                      <Table.Tr key={i}>
+                        <Table.Td>{i + 1}</Table.Td>
+                        <Table.Td>{w.word}</Table.Td>
+                        <Table.Td>{w.pinyin || "-"}</Table.Td>
+                        <Table.Td>{w.weight ?? "-"}</Table.Td>
+                      </Table.Tr>
+                    ))
+                  )}
+                </Table.Tbody>
+              </Table>
+            </ScrollArea>
+          </Card>
+
+        </Stack>
+      </Container>
+      <Footer />
+    </>
   );
 }
